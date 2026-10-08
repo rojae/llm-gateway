@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: llm-gateway
+  labels:
+    app.kubernetes.io/name: llm-gateway
+spec:
+  serviceName: llm-gateway-headless
+  replicas: 2
+  minReadySeconds: 10
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: llm-gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: llm-gateway
+    spec:
+      terminationGracePeriodSeconds: 330
+      automountServiceAccountToken: false
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: llm-gateway
+                topologyKey: kubernetes.io/hostname
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: registry.example.com/llm-gateway:replace-with-immutable-tag
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9090
+          envFrom:
+            - configMapRef:
+                name: llm-gateway-config
+          env:
+            - name: GW_ANALYTICS_SOURCE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: GW_ANALYTICS_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: llm-gateway-runtime
+                  key: db-password
+            - name: GW_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: llm-gateway-runtime
+                  key: oidc-client-secret
+            - name: SPRING_DATA_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: llm-gateway-runtime
+                  key: redis-url
+            - name: GW_KEY_ID_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: llm-gateway-runtime
+                  key: key-id-secret
+            - name: JAVA_TOOL_OPTIONS
+              value: -XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: management
+            periodSeconds: 5
+            failureThreshold: 36
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: management
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: management
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 2
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: access-logs
+              mountPath: /var/log/llm-gateway
+            - name: tmp
+              mountPath: /tmp
+            - name: postgres-ca
+              mountPath: /etc/llm-gateway/ca
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: postgres-ca
+          secret:
+            secretName: llm-gateway-postgres-ca
+            items:
+              - key: ca.crt
+                path: postgres-ca.crt
+  volumeClaimTemplates:
+    - metadata:
+        name: access-logs
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 5Gi

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Backend, scripts, and admin
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 21
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          package-manager-cache: false
+
+      # The script creates and removes disposable PostgreSQL 17 and Redis containers.
+      # Provider requests in the tests use fixtures; no provider credentials are required.
+      - name: Run full backend suite with disposable databases
+        run: bash scripts/test-analytics.sh
+
+      - name: Run offline Python regression tests
+        run: python3 -m unittest discover -s scripts -p 'test_*.py'
+
+      - name: Install admin dependencies from lockfile
+        run: npm --prefix llm-gateway-admin ci
+
+      - name: Check admin dependency advisories
+        run: npm --prefix llm-gateway-admin audit --audit-level=high
+
+      - name: Typecheck admin
+        run: npm --prefix llm-gateway-admin run typecheck
+
+      - name: Build admin
+        run: npm --prefix llm-gateway-admin run build -- --webpack

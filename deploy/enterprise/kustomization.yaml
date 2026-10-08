@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: llm-gateway
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - services.yaml
+  - statefulset.yaml
+  - admin-deployment.yaml
+  - gateway.yaml
+  - pdb.yaml
+  - networkpolicy.yaml

@@ -1,0 +1,12 @@
+gateway:
+  environment: ${GW_ENVIRONMENT:prod}
+  content-log:
+    format: ${GW_CONTENT_LOG_FORMAT:json}
+logging:
+  level:
+    gateway.content: ${GW_CONTENT_LOG_LEVEL:INFO}
+springdoc:
+  api-docs:
+    enabled: ${GW_API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${GW_API_DOCS_ENABLED:false}

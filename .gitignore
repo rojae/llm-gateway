@@ -1,0 +1,28 @@
+build/
+.gradle/
+.omc/
+*.class
+.DS_Store
+.idea/
+.omx/
+
+# archify 부산물 (다이어그램 소스와 최종 html 만 커밋한다)
+docs/*.visual-check.*
+var/
+.env
+.env.*
+!.env.example
+
+__pycache__/
+*.pyc
+
+# Local admin verification artifacts and browser sessions
+.omx/verification/
+.playwright-cli/
+output/playwright/
+
+# Personal CLI configuration and running-process notes stay local.
+docs/verification/2026-10-08-codex-live-setup.md
+
+# command
+.command/

@@ -1,0 +1,6 @@
+plugins {
+    id 'base'
+}
+
+group = 'dev.rojae.llmgateway'
+version = '0.1.0'

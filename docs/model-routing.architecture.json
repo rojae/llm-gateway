@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "llm-gateway — 모델 프리픽스 라우팅 (v1 제안)",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "request-path",
+        "label": "요청이 가는 길",
+        "focus": [
+          "client",
+          "gateway",
+          "router",
+          "openai",
+          "anthropic"
+        ],
+        "note": "클라이언트는 업스트림이 둘이라는 사실을 모른다. model 값 하나로 갈린다."
+      },
+      {
+        "id": "routing-decision",
+        "label": "라우팅 판단",
+        "focus": [
+          "config",
+          "router",
+          "openai",
+          "anthropic"
+        ],
+        "note": "설정의 접두사 표가 model 값을 업스트림으로 옮긴다. v0에는 없는 부분이다."
+      },
+      {
+        "id": "observability",
+        "label": "관측",
+        "focus": [
+          "gateway",
+          "observe"
+        ],
+        "note": "라우팅이 붙어도 기록 경로는 그대로다 — 요청 1건이 JSON 1줄."
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "client",
+      "type": "external",
+      "label": "클라이언트",
+      "sublabel": "curl · OpenAI SDK",
+      "tag": "OPENAI_BASE_URL",
+      "pos": [
+        40,
+        184
+      ],
+      "size": [
+        140,
+        66
+      ]
+    },
+    {
+      "id": "gateway",
+      "type": "backend",
+      "label": "ChatCompletions",
+      "sublabel": "프록시 본체",
+      "pos": [
+        310,
+        184
+      ],
+      "size": [
+        150,
+        66
+      ]
+    },
+    {
+      "id": "router",
+      "type": "backend",
+      "label": "모델 라우터",
+      "sublabel": "model 접두사 → 업스트림",
+      "tag": "제안 · 미구현",
+      "pos": [
+        610,
+        180
+      ],
+      "size": [
+        165,
+        74
+      ]
+    },
+    {
+      "id": "config",
+      "type": "database",
+      "label": "라우팅 표",
+      "sublabel": "gateway.routes[]",
+      "pos": [
+        610,
+        50
+      ],
+      "size": [
+        165,
+        60
+      ]
+    },
+    {
+      "id": "observe",
+      "type": "backend",
+      "label": "AccessLog",
+      "sublabel": "UsageSniffer · Pricing",
+      "pos": [
+        310,
+        310
+      ],
+      "size": [
+        150,
+        66
+      ]
+    },
+    {
+      "id": "openai",
+      "type": "external",
+      "label": "OpenAI",
+      "sublabel": "api.openai.com/v1",
+      "pos": [
+        920,
+        50
+      ],
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "anthropic",
+      "type": "external",
+      "label": "Anthropic",
+      "sublabel": "api.anthropic.com/v1",
+      "tag": "OpenAI 호환 레이어",
+      "pos": [
+        920,
+        306
+      ],
+      "size": [
+        170,
+        74
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "llm-gateway 프로세스 (인스턴스 하나)",
+      "wraps": [
+        "gateway",
+        "router",
+        "config",
+        "observe"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "client-in",
+      "from": "client",
+      "to": "gateway",
+      "label": "POST /v1/chat/completions",
+      "variant": "emphasis",
+      "labelDy": -36
+    },
+    {
+      "id": "parse-model",
+      "from": "gateway",
+      "to": "router",
+      "label": "model 필드만 읽는다"
+    },
+    {
+      "id": "route-openai",
+      "from": "router",
+      "to": "openai",
+      "label": "gpt-*",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "route-anthropic",
+      "from": "router",
+      "to": "anthropic",
+      "label": "claude-*",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "routes-table",
+      "from": "config",
+      "to": "router",
+      "label": "접두사 · base-url · 키",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 60
+    },
+    {
+      "id": "record",
+      "from": "gateway",
+      "to": "observe",
+      "label": "요청 1건 = JSON 1줄",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "labelDy": 62
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "지금 (실측 검증 완료)",
+      "items": [
+        "업스트림이 하나뿐이라 인스턴스를 나눠 쓴다",
+        ":8080 OpenAI passthrough · :8081 Claude managed",
+        "모델은 요청 body의 model 값이 그대로 결정한다"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "제안 — 모델 프리픽스 라우팅",
+      "items": [
+        "model 접두사로 업스트림을 고른다",
+        "인스턴스 둘이 하나로 합쳐진다",
+        "클라이언트는 벤더가 바뀐 줄 모른다"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "라우팅이 붙어도 그대로인 것",
+      "items": [
+        "버퍼링 금지 — 청크는 도착 즉시 내보낸다",
+        "취소 전파 — 끊기면 업스트림도 끊는다",
+        "상태 코드 선확정 — 429가 200에 숨지 않는다"
+      ]
+    }
+  ]
+}

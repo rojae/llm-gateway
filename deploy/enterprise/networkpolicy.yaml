@@ -1,0 +1,110 @@
+# Adapt selectors and destination CIDRs to the target CNI and managed services.
+# Standard NetworkPolicy cannot express FQDN destinations.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: llm-gateway
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: llm-gateway
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+          podSelector:
+            matchLabels:
+              gateway.envoyproxy.io/owning-gateway-name: llm-gateway-public
+              gateway.envoyproxy.io/owning-gateway-namespace: llm-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: llm-gateway-admin
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Node-origin kubelet probes are allowed by Kubernetes; permit only the
+    # designated monitoring namespace to scrape the separate management port.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # HTTPS covers Anthropic, OpenAI, OIDC discovery/JWKS and external auth.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+    # Narrow these to managed PostgreSQL and Redis CIDRs before deployment.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 5432
+        - protocol: TCP
+          port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: llm-gateway-admin
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: llm-gateway-admin
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: envoy-gateway-system
+          podSelector:
+            matchLabels:
+              gateway.envoyproxy.io/owning-gateway-name: llm-gateway-public
+              gateway.envoyproxy.io/owning-gateway-namespace: llm-gateway
+      ports:
+        - protocol: TCP
+          port: 3000
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: llm-gateway
+      ports:
+        - protocol: TCP
+          port: 8080

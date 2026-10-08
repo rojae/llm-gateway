@@ -1,0 +1,107 @@
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+    <springProperty scope="context" name="ACCESS_LOG_FILE" source="gw.access.log.file" defaultValue="var/access.log"/>
+    <springProperty scope="context" name="APP_LOG_FILE" source="gw.application.log.file" defaultValue="var/application.log"/>
+    <springProperty scope="context" name="LOG_MAX_SIZE" source="gw.logs.max-file-size" defaultValue="50MB"/>
+    <springProperty scope="context" name="LOG_HISTORY" source="gw.logs.history" defaultValue="30"/>
+    <springProperty scope="context" name="LOG_TOTAL_CAP" source="gw.logs.total-size-cap" defaultValue="1GB"/>
+    <springProperty scope="context" name="CONTENT_LOG_LEVEL" source="logging.level.gateway.content" defaultValue="INFO"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder><pattern>${CONSOLE_LOG_PATTERN}</pattern></encoder>
+    </appender>
+    <appender name="SUMMARY" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder><pattern>%clr(%d{HH:mm:ss.SSS}){faint} %highlight(%-5level) %clr(ACCESS){cyan} %msg%n</pattern></encoder>
+    </appender>
+    <appender name="ACCESS" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder><pattern>%msg%n</pattern></encoder>
+    </appender>
+    <appender name="ACCESS_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${ACCESS_LOG_FILE}</file>
+        <encoder><pattern>%msg%n</pattern></encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${ACCESS_LOG_FILE}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>${LOG_MAX_SIZE}</maxFileSize>
+            <maxHistory>${LOG_HISTORY}</maxHistory>
+            <totalSizeCap>${LOG_TOTAL_CAP}</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+    <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${APP_LOG_FILE}</file>
+        <encoder><pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level [%thread] %logger{40} - %msg%n%ex</pattern></encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${APP_LOG_FILE}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+            <maxFileSize>${LOG_MAX_SIZE}</maxFileSize>
+            <maxHistory>${LOG_HISTORY}</maxHistory>
+            <totalSizeCap>${LOG_TOTAL_CAP}</totalSizeCap>
+            <cleanHistoryOnStart>true</cleanHistoryOnStart>
+        </rollingPolicy>
+    </appender>
+    <springProfile name="!prod">
+        <appender name="CONTENT_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder><pattern>%clr(%d{HH:mm:ss.SSS}){faint} %highlight(%-5level) %clr(CONTENT){magenta} %msg%n</pattern></encoder>
+        </appender>
+        <logger name="gateway.access" level="INFO" additivity="false">
+            <appender-ref ref="ACCESS_FILE"/>
+        </logger>
+        <logger name="gateway.summary" level="INFO" additivity="false">
+            <appender-ref ref="SUMMARY"/>
+        </logger>
+    </springProfile>
+    <springProfile name="prod">
+        <appender name="CONTENT_CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder><pattern>%msg%n</pattern></encoder>
+        </appender>
+        <logger name="gateway.access" level="INFO" additivity="false">
+            <appender-ref ref="ACCESS"/>
+            <appender-ref ref="ACCESS_FILE"/>
+        </logger>
+        <logger name="gateway.summary" level="OFF" additivity="false"/>
+    </springProfile>
+    <!-- Conversation diagnostics are best-effort. Slow terminals/disks cannot block Netty. -->
+    <appender name="CONTENT_ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>256</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+        <maxFlushTime>1000</maxFlushTime>
+        <appender-ref ref="CONTENT_CONSOLE"/>
+    </appender>
+    <logger name="gateway.content" level="${CONTENT_LOG_LEVEL}" additivity="false">
+        <appender-ref ref="CONTENT_ASYNC"/>
+    </logger>
+    <springProfile name="!content-log-file">
+        <logger name="gateway.content.file" level="OFF" additivity="false"/>
+    </springProfile>
+    <springProfile name="content-log-file">
+        <springProperty scope="context" name="CONTENT_LOG_FILE" source="gw.content.log.file" defaultValue="var/content.log"/>
+        <springProperty scope="context" name="CONTENT_MAX_SIZE" source="gw.content.log.max-file-size" defaultValue="10MB"/>
+        <springProperty scope="context" name="CONTENT_HISTORY" source="gw.content.log.history" defaultValue="7"/>
+        <springProperty scope="context" name="CONTENT_TOTAL_CAP" source="gw.content.log.total-size-cap" defaultValue="100MB"/>
+        <appender name="CONTENT_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${CONTENT_LOG_FILE}</file>
+            <encoder><pattern>%msg%n</pattern></encoder>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${CONTENT_LOG_FILE}.%d{yyyy-MM-dd}.%i.gz</fileNamePattern>
+                <maxFileSize>${CONTENT_MAX_SIZE}</maxFileSize>
+                <maxHistory>${CONTENT_HISTORY}</maxHistory>
+                <totalSizeCap>${CONTENT_TOTAL_CAP}</totalSizeCap>
+                <cleanHistoryOnStart>true</cleanHistoryOnStart>
+            </rollingPolicy>
+        </appender>
+        <appender name="CONTENT_FILE_ASYNC" class="ch.qos.logback.classic.AsyncAppender">
+            <queueSize>256</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <neverBlock>true</neverBlock>
+            <maxFlushTime>1000</maxFlushTime>
+            <appender-ref ref="CONTENT_FILE"/>
+        </appender>
+        <logger name="gateway.content.file" level="${CONTENT_LOG_LEVEL}" additivity="false">
+            <appender-ref ref="CONTENT_FILE_ASYNC"/>
+        </logger>
+    </springProfile>
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="APP_FILE"/>
+    </root>
+</configuration>

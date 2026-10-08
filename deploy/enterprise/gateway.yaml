@@ -1,0 +1,119 @@
+# Requires a maintained Envoy Gateway installation with Gateway API and
+# gateway.envoyproxy.io CRDs. Change GatewayClass and policy settings to match
+# the chosen supported controller before deployment.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: llm-gateway-public
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: https
+      hostname: gateway.example.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: llm-gateway-tls
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: llm-gateway-control
+spec:
+  parentRefs:
+    - name: llm-gateway-public
+      sectionName: https
+  hostnames: [gateway.example.com]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /admin/api}
+        - path: {type: PathPrefix, value: /admin/auth}
+        - path: {type: PathPrefix, value: /oauth2}
+        - path: {type: PathPrefix, value: /login/oauth2}
+        - path: {type: Exact, value: /telemetry/v1/logs}
+      backendRefs:
+        - name: llm-gateway
+          port: 80
+      timeouts:
+        request: 60s
+        backendRequest: 60s
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: llm-gateway-admin
+spec:
+  parentRefs:
+    - name: llm-gateway-public
+      sectionName: https
+  hostnames: [gateway.example.com]
+  rules:
+    - matches:
+        - path: {type: Exact, value: /}
+        - path: {type: PathPrefix, value: /admin}
+        - path: {type: PathPrefix, value: /_next}
+        - path: {type: Exact, value: /icon.svg}
+      backendRefs:
+        - name: llm-gateway-admin
+          port: 80
+      timeouts:
+        request: 60s
+        backendRequest: 60s
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: llm-gateway-provider
+spec:
+  parentRefs:
+    - name: llm-gateway-public
+      sectionName: https
+  hostnames: [gateway.example.com]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /anthropic}
+        - path: {type: PathPrefix, value: /openai}
+        - path: {type: PathPrefix, value: /v1}
+      backendRefs:
+        - name: llm-gateway
+          port: 80
+      timeouts:
+        request: 0s
+        backendRequest: 0s
+---
+# Streaming requests may run for longer than a fixed total-request timeout.
+# Only inactivity is bounded; neither response buffering nor retries are enabled.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: llm-gateway-provider-streams
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: llm-gateway-provider
+  timeout:
+    http:
+      requestTimeout: 0s
+      maxStreamDuration: 0s
+      streamIdleTimeout: 360s
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: llm-gateway-client-streams
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: llm-gateway-public
+      sectionName: https
+  timeout:
+    http:
+      streamIdleTimeout: 360s

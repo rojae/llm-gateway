@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "v0 게이트웨이 요청 생명주기",
+    "viewBox": [
+      1060,
+      580
+    ],
+    "column_fit": "spread",
+    "quality_profile": "showcase"
+  },
+  "participants": [
+    {
+      "id": "client",
+      "type": "external",
+      "label": "클라이언트",
+      "sublabel": "curl · OpenAI SDK"
+    },
+    {
+      "id": "gateway",
+      "type": "backend",
+      "label": "게이트웨이",
+      "sublabel": "WebFlux 프록시"
+    },
+    {
+      "id": "upstream",
+      "type": "cloud",
+      "label": "업스트림 LLM",
+      "sublabel": "OpenAI · SGLang"
+    },
+    {
+      "id": "log",
+      "type": "messagebus",
+      "label": "AccessLog",
+      "sublabel": "JSON 한 줄"
+    }
+  ],
+  "segments": [
+    {
+      "from": 150,
+      "to": 252,
+      "label": "① 비스트리밍"
+    },
+    {
+      "from": 268,
+      "to": 370,
+      "label": "② 스트리밍"
+    },
+    {
+      "from": 386,
+      "to": 490,
+      "label": "③ 클라이언트 취소"
+    }
+  ],
+  "messages": [
+    {
+      "id": "u1",
+      "from": "client",
+      "to": "gateway",
+      "y": 160,
+      "label": "POST /v1/chat/completions",
+      "variant": "emphasis"
+    },
+    {
+      "id": "u2",
+      "from": "gateway",
+      "to": "upstream",
+      "y": 188,
+      "label": "hop-by-hop 헤더 제거 후 전달",
+      "variant": "default"
+    },
+    {
+      "id": "u3",
+      "from": "upstream",
+      "to": "gateway",
+      "y": 216,
+      "label": "200 + usage",
+      "variant": "return"
+    },
+    {
+      "id": "u4",
+      "from": "gateway",
+      "to": "client",
+      "y": 244,
+      "label": "200 + x-gw-cost-usd",
+      "variant": "return"
+    },
+    {
+      "id": "s1",
+      "from": "client",
+      "to": "gateway",
+      "y": 278,
+      "label": "stream: true",
+      "variant": "emphasis"
+    },
+    {
+      "id": "s2",
+      "from": "gateway",
+      "to": "upstream",
+      "y": 306,
+      "label": "include_usage 주입 후 전달",
+      "variant": "default"
+    },
+    {
+      "id": "s3",
+      "from": "upstream",
+      "to": "gateway",
+      "y": 334,
+      "label": "SSE 청크",
+      "variant": "return"
+    },
+    {
+      "id": "s4",
+      "from": "gateway",
+      "to": "client",
+      "y": 362,
+      "label": "즉시 전달 · TTFT 207ms",
+      "variant": "return"
+    },
+    {
+      "id": "c1",
+      "from": "client",
+      "to": "gateway",
+      "y": 396,
+      "label": "연결 끊김 (Ctrl+C)",
+      "variant": "security"
+    },
+    {
+      "id": "c2",
+      "from": "gateway",
+      "to": "upstream",
+      "y": 424,
+      "label": "구독 취소 → 커넥션 종료",
+      "variant": "security"
+    },
+    {
+      "id": "c3",
+      "from": "upstream",
+      "to": "gateway",
+      "y": 452,
+      "label": "signal=cancel · 생성 중단",
+      "variant": "return"
+    },
+    {
+      "id": "c4",
+      "from": "gateway",
+      "to": "log",
+      "y": 480,
+      "label": "clientDisconnected: true",
+      "variant": "dashed"
+    }
+  ],
+  "activations": [
+    {
+      "participant": "gateway",
+      "from": 155,
+      "to": 250,
+      "type": "backend"
+    },
+    {
+      "participant": "upstream",
+      "from": 183,
+      "to": 222,
+      "type": "cloud"
+    },
+    {
+      "participant": "gateway",
+      "from": 273,
+      "to": 368,
+      "type": "backend"
+    },
+    {
+      "participant": "upstream",
+      "from": 301,
+      "to": 340,
+      "type": "cloud"
+    },
+    {
+      "participant": "gateway",
+      "from": 391,
+      "to": 486,
+      "type": "backend"
+    },
+    {
+      "participant": "upstream",
+      "from": 419,
+      "to": 458,
+      "type": "cloud"
+    },
+    {
+      "participant": "log",
+      "from": 475,
+      "to": 488,
+      "type": "messagebus"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "비스트리밍 — 비용을 헤더에 담을 수 있다",
+      "items": [
+        "본문을 다 받은 뒤라 토큰·비용을 응답 헤더에 실을 수 있다",
+        "업스트림에 닿지 못하면 아직 아무것도 안 썼으므로 502를 정확히 돌려준다"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "스트리밍 — 비용은 헤더에 못 담는다",
+      "items": [
+        "헤더는 첫 토큰보다 먼저 나간다. 비용은 그때 모르므로 로그로 간다",
+        "청크는 도착 즉시 그대로 전달한다. 모아두면 TTFT가 죽는다"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "취소 — v0의 합격 기준",
+      "items": [
+        "WebFlux에서는 구독 취소가 업스트림까지 자동 전파된다",
+        "전파되지 않으면 아무도 읽지 않을 토큰을 GPU가 계속 만든다"
+      ]
+    }
+  ]
+}

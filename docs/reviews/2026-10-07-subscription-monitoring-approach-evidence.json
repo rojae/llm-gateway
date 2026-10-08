@@ -1,0 +1,252 @@
+{
+  "review_date": "2026-10-07",
+  "reader_cli_version": "0.160.0",
+  "method": "read-only schema generation, local metadata analysis, isolated stored-history reads",
+  "boundaries": {
+    "subscription_cli_inference_calls_added": 0,
+    "provider_credentials_copied": false,
+    "personal_settings_modified": false,
+    "source_history_modified": false,
+    "live_gateway_database_accessed": false,
+    "passive_daemon_connection_verified": false,
+    "shared_control_socket_available_in_current_runtime_home": false,
+    "new_product_code_written": false
+  },
+  "codex_installed_schema": {
+    "generation_succeeded": true,
+    "experimental_fields_included": true,
+    "live_usage_notification_fields": [
+      "threadId",
+      "tokenUsage",
+      "turnId"
+    ],
+    "usage_snapshot_fields": [
+      "last",
+      "modelContextWindow",
+      "total"
+    ],
+    "token_breakdown_fields": [
+      "cacheWriteInputTokens",
+      "cachedInputTokens",
+      "inputTokens",
+      "outputTokens",
+      "reasoningOutputTokens",
+      "totalTokens"
+    ],
+    "stored_turn_fields": [
+      "completedAt",
+      "durationMs",
+      "error",
+      "id",
+      "items",
+      "itemsView",
+      "startedAt",
+      "status"
+    ],
+    "stored_turn_includes_usage_field": false,
+    "account_usage_param_fields": [
+      "threadId"
+    ],
+    "account_usage_response_fields": [
+      "dailyUsageBuckets",
+      "summary",
+      "threadUsage"
+    ],
+    "thread_estimate_fields": [
+      "estimatedUsageCreditsMicros",
+      "estimatedUsageUsdMicros",
+      "groups",
+      "threadId"
+    ],
+    "account_usage_runtime_response_verified": false
+  },
+  "isolated_complete_legacy_read": {
+    "source_cli_version": "0.130.0-alpha.5",
+    "source_history_mode": "legacy",
+    "no_model_execution_methods_sent": true,
+    "credentials_copied": false,
+    "source_untouched": true,
+    "initialize_ok": true,
+    "thread_read_ok": true,
+    "read_error_code": null,
+    "turn_count": 1,
+    "turn_keys": [
+      "completedAt",
+      "durationMs",
+      "error",
+      "id",
+      "items",
+      "itemsView",
+      "startedAt",
+      "status"
+    ],
+    "has_turn_token_usage_field": false,
+    "item_count": 2,
+    "item_types": [
+      "agentMessage",
+      "userMessage"
+    ],
+    "turns_list_ok": true,
+    "turns_list_count": 1,
+    "turns_list_error_code": null
+  },
+  "isolated_paginated_jsonl_only_read": {
+    "no_model_execution_methods_sent": true,
+    "credentials_copied": false,
+    "source_untouched": true,
+    "copied_rollout_cli_version": "0.160.0",
+    "copied_rollout_history_mode": "paginated",
+    "initialize_ok": true,
+    "thread_list_ok": true,
+    "thread_list_count": 0,
+    "list_error_code": null,
+    "thread_read_ok": true,
+    "read_error_code": null,
+    "returned_thread_keys": [
+      "agentNickname",
+      "agentRole",
+      "canAcceptDirectInput",
+      "cliVersion",
+      "createdAt",
+      "cwd",
+      "daybreakEnabled",
+      "environments",
+      "ephemeral",
+      "extra",
+      "forkedFromId",
+      "gitInfo",
+      "historyMode",
+      "id",
+      "model",
+      "modelProvider",
+      "name",
+      "originator",
+      "parentThreadId",
+      "path",
+      "preview",
+      "projectId",
+      "reasoningEffort",
+      "recencyAt",
+      "section",
+      "sectionEnteredAt",
+      "sessionId",
+      "source",
+      "status",
+      "threadSource",
+      "turns",
+      "updatedAt"
+    ],
+    "turn_count": 0,
+    "turn_keys": [],
+    "has_turn_token_usage_field": false,
+    "item_count": 0,
+    "item_types": []
+  },
+  "claude_historical_metadata": {
+    "versions": [
+      "2.1.267"
+    ],
+    "assistant_entries": 164,
+    "unique_message_ids": 80,
+    "unique_request_ids": 78,
+    "duplicated_message_groups": 47,
+    "groups_with_changed_usage": 0,
+    "cost_state_snapshots": 4,
+    "raw_content_exported": false,
+    "output_values_assumed_placeholder": false
+  },
+  "codex_saved_accounting_metadata": {
+    "source_cli_version": "0.160.0",
+    "history_mode": "paginated",
+    "creator_account_field_present": true,
+    "usage_record_fields": [
+      "response_id",
+      "root_turn_id",
+      "session_id",
+      "thread_id",
+      "thread_token_usage",
+      "turn_id",
+      "turn_token_usage",
+      "usage"
+    ],
+    "usage_record_count": 10,
+    "unique_response_count": 10,
+    "unique_turn_count": 2,
+    "usage_fields": [
+      "cache_write_input_tokens",
+      "cached_input_tokens",
+      "input_tokens",
+      "output_tokens",
+      "reasoning_output_tokens",
+      "total_tokens"
+    ],
+    "interpretation_limit": "one local sample containing two turns; not a universal contract for all releases, retries, compaction or forks",
+    "sampled_from_frozen_copy": true,
+    "turns": [
+      {
+        "response_count": 8,
+        "summed_request_usage": {
+          "cache_write_input_tokens": 0,
+          "cached_input_tokens": 377344,
+          "input_tokens": 421869,
+          "output_tokens": 4236,
+          "reasoning_output_tokens": 163,
+          "total_tokens": 426105
+        },
+        "final_turn_snapshot": {
+          "input_tokens": 421869,
+          "cached_input_tokens": 377344,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 4236,
+          "reasoning_output_tokens": 163,
+          "total_tokens": 426105
+        },
+        "sum_matches_final_turn_snapshot": true
+      },
+      {
+        "response_count": 2,
+        "summed_request_usage": {
+          "cache_write_input_tokens": 0,
+          "cached_input_tokens": 137088,
+          "input_tokens": 140858,
+          "output_tokens": 947,
+          "reasoning_output_tokens": 143,
+          "total_tokens": 141805
+        },
+        "final_turn_snapshot": {
+          "input_tokens": 140858,
+          "cached_input_tokens": 137088,
+          "cache_write_input_tokens": 0,
+          "output_tokens": 947,
+          "reasoning_output_tokens": 143,
+          "total_tokens": 141805
+        },
+        "sum_matches_final_turn_snapshot": true
+      }
+    ],
+    "summed_thread_request_usage": {
+      "cache_write_input_tokens": 0,
+      "cached_input_tokens": 514432,
+      "input_tokens": 562727,
+      "output_tokens": 5183,
+      "reasoning_output_tokens": 306,
+      "total_tokens": 567910
+    },
+    "final_thread_snapshot": {
+      "input_tokens": 562727,
+      "cached_input_tokens": 514432,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 5183,
+      "reasoning_output_tokens": 306,
+      "total_tokens": 567910
+    },
+    "sum_matches_final_thread_snapshot": true
+  },
+  "third_party_tools": {
+    "ccusage": "official documentation reviewed only; not installed or executed",
+    "opentelemetry_collector": "documented persistent queue reviewed; current gateway wire compatibility untested"
+  },
+  "cleanup": {
+    "isolated_history_servers_stopped": true
+  }
+}

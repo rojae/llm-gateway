@@ -1,0 +1,113 @@
+{
+  "date": "2026-10-08",
+  "implementation_scope": "local_implementation_and_integration_verified",
+  "reviews": {
+    "code": "APPROVE",
+    "architecture": "CLEAR"
+  },
+  "full_suite": {
+    "suites": 39,
+    "tests": 226,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "monitoring": {
+      "dev.rojae.llmgateway.analytics.TelemetryNormalizerTest": {
+        "tests": 7,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "dev.rojae.llmgateway.analytics.RemoteMonitoringContractTest": {
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "dev.rojae.llmgateway.analytics.MonitoringStorageTest": {
+        "tests": 2,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "dev.rojae.llmgateway.analytics.TelemetrySecurityTest": {
+        "tests": 3,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "dev.rojae.llmgateway.analytics.EnterpriseTelemetryTest": {
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "dev.rojae.llmgateway.analytics.TelemetryIntegrationTest": {
+        "tests": 6,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "dev.rojae.llmgateway.analytics.MonitoringNormalizerTest": {
+        "tests": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    }
+  },
+  "final_affected_suite": {
+    "suites": 10,
+    "tests": 59,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "python_tests": 17,
+  "frontend_typecheck": "passed",
+  "frontend_build": "passed",
+  "browser": {
+    "scope": "disposable_local_HTTP",
+    "synthetic_events": 7,
+    "acknowledged_events_after_graceful_restart": 7,
+    "claude_sample": {
+      "tokens": 557,
+      "api_equivalent_usd": "0.001061",
+      "fixture": "synthetic_schema_measured_numbers"
+    },
+    "codex_completion_inputs": [
+      12497,
+      29220
+    ],
+    "codex_question_totals": null,
+    "checks": [
+      "account_session_question_navigation",
+      "plain_text_HTML_prompt",
+      "new_question_auto_poll",
+      "account_create_and_owner_required_key",
+      "issued_JSON_configuration",
+      "secret_modal_cleared",
+      "simulated_role_downgrade_clears_content",
+      "simulated_hidden_document_stops_polling",
+      "logout_clears_state_no_browser_storage",
+      "same_DB_graceful_API_restart"
+    ],
+    "native_exporter_latency_measured": false,
+    "remote_HTTPS_verified": false,
+    "revoked_test_collectors": 2
+  },
+  "existing_migrations_unchanged": true,
+  "personal_cli_settings_changed": false,
+  "new_dependencies": false,
+  "documentation_check": {
+    "links": 27,
+    "config_blocks": 3,
+    "issues": []
+  },
+  "limits": [
+    "actual_remote_HTTPS_unverified",
+    "native_exporter_latency_unmeasured",
+    "Codex_exact_question_usage_unverified",
+    "offline_recovery_and_historical_backfill_not_implemented"
+  ]
+}

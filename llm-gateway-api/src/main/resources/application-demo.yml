@@ -1,0 +1,21 @@
+server:
+  port: 8080
+
+gateway:
+  # demo 프로파일에서는 게이트웨이가 자기 자신 안의 가짜 업스트림을 바라본다.
+  upstream-base-url: http://127.0.0.1:8080/stub/v1
+  upstream-api-key: ""
+  environment: local
+  traffic-label: demo
+  # A demo profile must never send a request to a real provider by accident.
+  providers:
+    openai-base-url: http://127.0.0.1:8080/stub/v1
+    anthropic-base-url: http://127.0.0.1:8080/stub/v1
+
+gw:
+  access:
+    log:
+      file: ${GW_ACCESS_LOG_FILE:var/demo/access.log}
+  application:
+    log:
+      file: ${GW_APPLICATION_LOG_FILE:var/demo/application.log}

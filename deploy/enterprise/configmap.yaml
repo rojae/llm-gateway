@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-gateway-config
+data:
+  SPRING_PROFILES_ACTIVE: prod
+  GW_SECURITY_MODE: enterprise
+  GW_BIND_ADDRESS: 0.0.0.0
+  GW_PORT: "8080"
+  GW_MANAGEMENT_ADDRESS: 0.0.0.0
+  GW_MANAGEMENT_PORT: "9090"
+  GW_EXTERNAL_BASE_URL: https://gateway.example.com
+  GW_ADMIN_UI_URL: https://gateway.example.com/admin
+  GW_OIDC_ISSUER_URI: https://login.example.com/realms/llm-gateway
+  GW_OIDC_AUDIENCE: llm-gateway-admin-api
+  GW_OIDC_CLIENT_ID: llm-gateway-console
+  GW_OIDC_TENANT_CLAIM: tenant_id
+  GW_OIDC_ROLES_CLAIM: roles
+  GW_ALLOWED_TENANTS: tenant-a,tenant-b
+  GW_ANALYTICS_TENANT_ID: tenant-a
+  GW_ANALYTICS_ENABLED: "true"
+  GW_ANALYTICS_JDBC_URL: jdbc:postgresql://postgres.example.com:5432/llm_gateway?sslmode=verify-full&sslrootcert=/etc/llm-gateway/ca/postgres-ca.crt
+  GW_ANALYTICS_DB_USER: llm_gateway_app
+  GW_ANALYTICS_MAX_POOL_SIZE: "8"
+  GW_ANALYTICS_CONNECTION_TIMEOUT: 3s
+  GW_ANALYTICS_REQUEST_RETENTION_DAYS: "0"
+  GW_ANALYTICS_CONTENT_RETENTION_DAYS: "0"
+  GW_ANALYTICS_ACCESS_LOG: /var/log/llm-gateway/access.log
+  GW_ANALYTICS_CONTENT_LOG: /var/log/llm-gateway/content.log
+  GW_ACCESS_LOG_FILE: /var/log/llm-gateway/access.log
+  GW_APPLICATION_LOG_FILE: /var/log/llm-gateway/application.log
+  GW_CONTENT_LOG_FILE: /var/log/llm-gateway/content.log
+  GW_CONTENT_LOG_LEVEL: INFO
+  GW_TELEMETRY_ENABLED: "true"
+  SPRING_SESSION_TIMEOUT: 30m
+  SERVER_SHUTDOWN: graceful
+  SPRING_LIFECYCLE_TIMEOUT_PER_SHUTDOWN_PHASE: 300s

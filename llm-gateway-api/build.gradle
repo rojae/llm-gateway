@@ -1,0 +1,75 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.3'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'dev.rojae.llmgateway'
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+    implementation 'org.springframework.session:spring-session-data-redis'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+    implementation 'com.zaxxer:HikariCP'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    // Analytics is opt-in; JDBC work runs outside the proxy's Netty event loop.
+    runtimeOnly 'org.postgresql:postgresql'
+
+    // Swagger UI + OpenAPI 3. springdoc 3.x 는 Spring Boot 4 전용이므로 2.8.x 를 쓴다.
+    implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.8.17'
+
+    // macOS 에서만: netty 의 네이티브 DNS resolver.
+    // 없으면 기동 시 UnsatisfiedLinkError 경고가 뜨고 시스템 DNS 로 폴백한다(동작 자체는 한다).
+    // 주의: 빌드하는 머신을 기준으로 판단하므로, 리눅스 CI 에서 만든 jar 에는 들어가지 않는다.
+    //      (리눅스는 netty 가 epoll 네이티브를 쓰므로 이 경고 자체가 없다)
+    // Gradle 내부 API(OperatingSystem.current())는 데몬에 캐시되어 재정의가 먹지 않고
+    // 버전 간 호환도 보장되지 않는다. 표준 시스템 프로퍼티를 쓴다.
+    if (System.getProperty('os.name').toLowerCase().contains('mac')) {
+        def arch = System.getProperty('os.arch')
+        def nettyClassifier = (arch == 'aarch64' || arch == 'arm64') ? 'osx-aarch_64' : 'osx-x86_64'
+        runtimeOnly group: 'io.netty', name: 'netty-resolver-dns-native-macos', classifier: nettyClassifier
+    }
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'io.projectreactor:reactor-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('bootJar') {
+    archiveBaseName = 'llm-gateway'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    systemProperty 'management.server.port', '0'
+    systemProperty 'gw.application.log.file', layout.buildDirectory.file('test-logs/application.log').get().asFile.absolutePath
+    systemProperty 'gateway.environment', 'test'
+    systemProperty 'gateway.traffic-label', 'test'
+    // Synthetic provider usage must not enter the operator's cost ledger.
+    systemProperty 'gw.access.log.file', layout.buildDirectory.file('test-logs/access.log').get().asFile.absolutePath
+    systemProperty 'gw.content.log.file', layout.buildDirectory.file('test-logs/content.log').get().asFile.absolutePath
+    systemProperty 'logging.level.gateway.content', 'INFO'
+    testLogging {
+        events 'passed', 'failed', 'skipped'
+        showStandardStreams = false
+        exceptionFormat = 'full'
+    }
+}
