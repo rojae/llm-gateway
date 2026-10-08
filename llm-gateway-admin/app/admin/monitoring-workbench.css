@@ -1,0 +1,204 @@
+.monitoring-view.inbox-view {
+  --inbox-surface: #f7f9f8;
+  --inbox-selected: #eaf3ee;
+  gap: 14px;
+}
+.inbox-view [hidden] { display: none !important; }
+.inbox-view .receiving-summary {
+  padding: 10px 0;
+  gap: 22px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.inbox-view .receiving-connection { gap: 8px; }
+.inbox-view .receiving-connection strong { font-size: 12px; font-weight: 600; }
+.inbox-view .receiving-connection span { font-size: 11px; }
+.inbox-view .receiving-value { flex-direction: row; align-items: center; gap: 8px; }
+.inbox-view .receiving-value strong { font-size: 12px; font-weight: 500; }
+.inbox-view .receiving-diagnostics summary { font-size: 11px; }
+.inbox-view .monitoring-workspace { display: block; }
+.inbox-view .inbox-toolbar { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+.inbox-view .account-switcher { position: relative; min-width: 0; }
+.inbox-view .account-switcher-button {
+  display: flex; align-items: center; gap: 10px; max-width: 100%; padding: 8px 12px 8px 8px;
+  border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink); text-align: left;
+}
+.inbox-view .account-switcher-button .account-avatar { width: 29px; height: 29px; border-radius: 7px; font-size: 12px; }
+.inbox-view .account-switcher-button strong { font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.inbox-view .account-switcher-button > svg { flex: none; color: var(--muted); }
+.inbox-view .account-switcher-button[aria-expanded=true] { border-color: #96baa6; }
+.inbox-view .account-rail {
+  position: absolute; inset: calc(100% + 8px) auto auto 0; width: 350px; max-width: calc(100vw - 40px); z-index: 15;
+  border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 12px 32px #17392c18;
+}
+.inbox-view .account-rail .panel { border: 0; border-radius: 12px; box-shadow: none; }
+.inbox-view .account-rail .account-list { display: flex; flex-direction: column; max-height: 330px; overflow: auto; }
+.inbox-view .account-rail .account-search { max-width: none; }
+.inbox-view .account-rail .rail-help { margin: 0; padding: 12px 16px; border-top: 1px solid var(--line); display: flex; }
+.inbox-view .inbox-scope { margin-left: auto; color: var(--muted); font-size: 12px; text-align: right; }
+.inbox-view .monitoring-filter-disclosure { margin: 0 0 0 auto; flex: 1; min-width: 0; }
+.inbox-view .inbox-toolbar > .monitoring-filter-disclosure > summary { min-height: 47px; }
+.inbox-view .monitoring-filter-disclosure > summary { padding: 10px 14px; font-size: 12px; background: transparent; }
+.inbox-view .monitoring-filter-disclosure > summary > span:last-child { font-weight: 500; }
+.inbox-view .monitoring-filter-disclosure[open] .monitoring-filters { margin-top: 8px; }
+.inbox-view .session-workspace,
+.inbox-view .session-workspace.has-session {
+  display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 0; align-items: stretch;
+  border: 1px solid var(--line); border-radius: 12px; background: #fff; min-width: 0;
+}
+.inbox-view .session-rail { min-width: 0; border-right: 1px solid var(--line); background: var(--inbox-surface); border-radius: 12px 0 0 12px; }
+.inbox-view .session-rail > .panel { border: 0; box-shadow: none; border-radius: 12px 0 0 12px; background: transparent; height: 100%; }
+.inbox-view .session-rail .panel-header { padding: 18px 16px 14px; min-height: 0; border-bottom: 0; gap: 8px; }
+.inbox-view .session-rail .panel-header h2 { font-size: 14px; }
+.inbox-view .session-rail .panel-header p { font-size: 11px; line-height: 1.7; }
+.inbox-view .session-list { display: flex; flex-direction: column; gap: 5px; padding: 4px 10px 16px; max-height: 650px; overflow: auto; }
+.inbox-view .session-option { width: 100%; padding: 13px 12px; border-radius: 8px; gap: 7px; }
+.inbox-view .session-option:hover { background: #eef2ef; }
+.inbox-view .session-option.selected { background: var(--inbox-selected); border-color: #cbded2; }
+.inbox-view .session-option-top strong { font-weight: 600; }
+.inbox-view .session-option > small { overflow-wrap: anywhere; }
+.inbox-view .session-rail .pagination { border-top: 1px solid var(--line); background: transparent; }
+.inbox-view .session-inspector { border: 0; border-radius: 0 12px 12px 0; overflow: visible; }
+.inbox-view .session-placeholder { display: grid; place-items: center; min-height: 420px; padding: 30px; }
+.inbox-view .session-inspector-heading { padding: 23px 28px 16px; align-items: center; }
+.inbox-view .session-inspector-heading h2 { font-size: 21px; margin: 8px 0 4px; letter-spacing: -.55px; font-weight: 600; }
+.inbox-view .session-heading-actions { display: flex; align-items: center; gap: 5px; flex: none; }
+.inbox-view .session-heading-actions .button { font-size: 12px; font-weight: 500; }
+.inbox-view .session-identifier { font-size: 11px; }
+.inbox-view .session-context { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 14px; padding: 0 28px 18px; font-size: 11px; color: var(--muted); }
+.inbox-view .session-context .context-warning { display: inline-flex; align-items: center; gap: 5px; color: #7c6339; }
+.inbox-view .session-context .context-link { display: inline-flex; gap: 5px; align-items: center; border: 0; background: transparent; color: var(--green); padding: 0; font-size: 11px; }
+.inbox-view .inspector-tabs { padding: 0 28px; gap: 22px; }
+.inbox-view .inspector-tabs button { padding: 12px 0; font-size: 12px; font-weight: 500; }
+.inbox-view .question-workspace { display: flex; flex-direction: column; min-height: 330px; }
+.inbox-view .question-rail { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; background: #fcfdfc; border-right: 0; border-bottom: 1px solid var(--line); padding: 14px 28px; }
+.inbox-view .question-list-heading { padding: 0; gap: 12px; }
+.inbox-view .question-list-heading > span { display: none; }
+.inbox-view .question-list-heading strong { font-weight: 500; }
+.inbox-view .question-list { display: flex; flex-direction: row; flex-wrap: wrap; padding: 0; gap: 7px; overflow: visible; max-height: none; flex: 1; }
+.inbox-view .question-option { width: auto; min-width: 73px; flex: none; display: flex; padding: 7px 11px; border: 1px solid var(--line); background: #fff; border-radius: 6px; }
+.inbox-view .question-option > span:first-child { gap: 9px; font-size: 12px; }
+.inbox-view .question-option > span:first-child strong { font-weight: 500; }
+.inbox-view .question-option.selected { background: var(--inbox-selected); border-color: #a7c5b4; }
+.inbox-view .question-option > small,
+.inbox-view .question-option > .question-availability { display: none; }
+.inbox-view .question-rail .pagination { padding: 0; border: 0; flex-basis: 100%; }
+.inbox-view .question-rail .loading-panel,
+.inbox-view .question-rail .inline-note { flex-basis: 100%; }
+.inbox-view .question-reader { padding: 24px 28px; scroll-margin-top: 24px; }
+.inbox-view .question-reader > .empty { min-height: 230px; }
+.inbox-view .reader-heading { margin-bottom: 18px; padding-bottom: 0; border: 0; align-items: center; }
+.inbox-view .reader-heading .mini-label { font-size: 11px; font-weight: 500; }
+.inbox-view .reader-heading h3 { font-size: 19px; font-weight: 600; }
+.inbox-view .reader-heading p { font-size: 11px; }
+.inbox-view .reader-actions .icon-button { width: 32px; height: 32px; }
+.inbox-view .prompt-content { padding: 18px 20px; border-radius: 9px; background: #f3f7f4; }
+.inbox-view .prompt-text { min-height: 0; font-size: 14px; line-height: 1.85; word-break: break-word; }
+.inbox-view .response-list { margin-top: 25px; padding-top: 0; border-top: 0; }
+.inbox-view .response-list-heading { margin-bottom: 8px; }
+.inbox-view .response-list-heading h3 { font-size: 14px; font-weight: 600; }
+.inbox-view .response-card { border: 0; border-radius: 0; padding: 18px 0; margin: 0; }
+.inbox-view .response-card + .response-card { border-top: 1px solid var(--line); }
+.inbox-view .response-card > header strong { font-weight: 600; color: var(--green); }
+.inbox-view .response-text { font-size: 14px; line-height: 1.95; }
+.inbox-view .response-metadata { font-size: 11px; }
+.inbox-view .reader-boundary { margin-top: 10px; padding: 8px 0 14px; }
+.inbox-view .question-metadata > summary { font-weight: 500; }
+.inbox-view .session-responses { padding: 24px 28px; }
+.inbox-view .session-usage { padding: 15px 28px; border-top: 1px solid var(--line); }
+.inbox-view .session-usage > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); cursor: pointer; list-style: none; }
+.inbox-view .session-usage > summary::-webkit-details-marker { display: none; }
+.inbox-view .session-usage > summary > span { display: inline-flex; align-items: center; gap: 8px; }
+.inbox-view .session-usage[open] > summary { margin-bottom: 20px; }
+.inbox-view .session-usage .session-summary { padding: 0 0 16px; }
+.inbox-view .session-usage .session-summary strong { font-size: 14px; font-weight: 600; }
+.inbox-view .session-usage .session-cost-context { padding: 0 0 14px; }
+.inbox-view .session-usage .usage-explanation { border: 0; border-radius: 8px; padding: 12px; }
+.inbox-view .session-technical { background: var(--inbox-surface); padding: 15px 28px; border-radius: 0 0 12px 0; }
+.inbox-view .session-technical > summary { font-weight: 500; }
+.inbox-view .cost-panel { margin-top: 16px; }
+.inbox-view .cost-panel > summary { font-weight: 400; }
+.inbox-view .cost-panel > summary strong { font-weight: 500; }
+.inbox-view .monitoring-footnote { padding: 0 2px; }
+.inbox-view.is-focused .receiving-summary,
+.inbox-view.is-focused .monitoring-filter-disclosure,
+.inbox-view.is-focused .cost-panel,
+.inbox-view.is-focused .monitoring-footnote { display: none; }
+.inbox-view.is-focused .session-workspace { display: block; max-width: 1050px; margin: 0 auto; }
+.inbox-view.is-focused .session-inspector { border-radius: 12px; }
+.inbox-view.is-focused .session-inspector-heading { padding: 28px 40px 16px; }
+.inbox-view.is-focused .session-context { padding-inline: 40px; }
+.inbox-view.is-focused .inspector-tabs { padding-inline: 40px; }
+.inbox-view.is-focused .question-reader { max-width: 840px; margin: 0 auto; padding: 34px 40px 42px; width: 100%; }
+.inbox-view.is-focused .reader-heading h3 { font-size: 25px; letter-spacing: -.6px; }
+.inbox-view.is-focused .prompt-content { background: transparent; border-left: 3px solid #d8e6dc; border-radius: 0; padding: 8px 20px; }
+.inbox-view.is-focused .prompt-text,
+.inbox-view.is-focused .response-text { font-size: 15px; line-height: 2; }
+.inbox-view.is-focused .response-list { margin-top: 32px; }
+.inbox-view.is-focused .session-responses,
+.inbox-view.is-focused .observation-panel { max-width: 840px; margin: 0 auto; }
+.inbox-view.is-focused .session-usage,
+.inbox-view.is-focused .session-technical { padding-inline: 40px; }
+@media (max-width: 1100px) {
+  .inbox-view .session-workspace,
+  .inbox-view .session-workspace.has-session { grid-template-columns: 220px minmax(0, 1fr); }
+  .inbox-view .receiving-summary { gap: 14px; flex-wrap: wrap; }
+  .inbox-view .receiving-connection { flex-basis: auto; }
+  .inbox-view .receiving-last { display: none; }
+  .inbox-view .session-inspector-heading { padding: 20px; flex-wrap: wrap; }
+  .inbox-view .session-context,
+  .inbox-view .inspector-tabs { padding-inline: 20px; }
+  .inbox-view .question-reader,
+  .inbox-view .session-responses { padding: 22px 20px; }
+  .inbox-view .question-rail { padding-inline: 20px; }
+  .inbox-view .session-usage,
+  .inbox-view .session-technical { padding-inline: 20px; }
+}
+@media (max-width: 760px) {
+  .inbox-view .session-workspace,
+  .inbox-view .session-workspace.has-session { grid-template-columns: 1fr; }
+  .inbox-view .session-rail { border-right: 0; border-bottom: 1px solid var(--line); border-radius: 12px 12px 0 0; }
+  .inbox-view .session-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 240px; }
+  .inbox-view .session-inspector { border-radius: 0 0 12px 12px; }
+  .inbox-view .session-technical { border-radius: 0 0 12px 12px; }
+  .inbox-view .receiving-summary { gap: 10px 16px; }
+  .inbox-view .receiving-value { display: none; }
+  .inbox-view .receiving-connection { flex-basis: auto; margin-bottom: 0; }
+  .inbox-view .live-control { flex-basis: auto; margin-left: auto; }
+  .inbox-view .inbox-toolbar { flex-wrap: wrap; gap: 10px; }
+  .inbox-view .inbox-toolbar > .monitoring-filter-disclosure { flex-basis: 100%; margin: 0; }
+  .inbox-view .inbox-scope { font-size: 11px; }
+  .inbox-view.is-focused .session-inspector-heading { padding: 22px 20px 16px; }
+  .inbox-view.is-focused .session-context,
+  .inbox-view.is-focused .inspector-tabs { padding-inline: 20px; }
+  .inbox-view.is-focused .question-reader { padding: 26px 20px; }
+  .inbox-view.is-focused .session-usage,
+  .inbox-view.is-focused .session-technical { padding-inline: 20px; }
+}
+@media (max-width: 420px) {
+  .inbox-view .receiving-diagnostics { margin-left: auto; }
+  .inbox-view .live-control { width: 100%; justify-content: center; }
+  .inbox-view .inbox-scope { width: 100%; margin-left: 0; text-align: left; }
+  .inbox-view .session-list { grid-template-columns: 1fr; max-height: 200px; }
+  .inbox-view .session-option { padding: 10px; }
+  .inbox-view .session-identifier { overflow-wrap: anywhere; }
+  .inbox-view .session-heading-actions { flex-wrap: wrap; width: 100%; }
+  .inbox-view .session-heading-actions .button { flex: 1; justify-content: center; min-height: 40px; }
+  .inbox-view .session-context { gap: 7px; }
+  .inbox-view .inspector-tabs { gap: 15px; }
+  .inbox-view .inspector-tabs button { gap: 5px; }
+  .inbox-view .question-rail { padding-inline: 16px; }
+  .inbox-view .question-reader,
+  .inbox-view .session-responses { padding: 20px 16px; }
+  .inbox-view .reader-heading { flex-wrap: wrap; }
+  .inbox-view .prompt-content { padding: 14px; }
+  .inbox-view .session-usage .session-summary { grid-template-columns: 1fr; gap: 12px; }
+  .inbox-view .session-usage .session-summary > div { border: 0; padding: 0; }
+  .inbox-view .monitoring-filter-disclosure > summary { flex-wrap: wrap; gap: 8px; }
+  .inbox-view .usage-explanation { flex-wrap: wrap; }
+}
+@media (pointer: coarse) {
+  .inbox-view .question-option,
+  .inbox-view .reader-actions .icon-button { min-height: 44px; min-width: 44px; }
+}

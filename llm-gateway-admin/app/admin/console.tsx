@@ -6,6 +6,7 @@ import type { Audit, Collector, Filters, Ingestion, Overview, Paged, RequestDeta
 import { defaultFilters, query, time, validateFilters, viewMeta } from './model';
 import { CollectorOwners, CollectorSetup, MonitoringView } from './monitoring';
 import { AuditView, CollectorsView, DetailView, IngestionView, OverviewView, RequestsView } from './views';
+import './console-shell.css';
 
 type Mode = 'loading' | 'local' | 'enterprise';
 type Dataset = Overview | Paged<RequestItem> | Ingestion | Paged<Collector> | Paged<Audit>;
@@ -50,10 +51,49 @@ export default function Console() {
   const [detailError, setDetailError] = useState('');
   const [issuedToken, setIssuedToken] = useState('');
   const [mobileNav, setMobileNav] = useState(false);
+  const mobileMenuButton = useRef<HTMLButtonElement | null>(null);
+  const operationsMenu = useRef<HTMLDetailsElement | null>(null);
+  const operatorMenu = useRef<HTMLDetailsElement | null>(null);
   const loadAbort = useRef<AbortController | null>(null);
   const mutationAbort = useRef<AbortController | null>(null);
   const authGeneration = useRef(0);
   const detailAbort = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    if (!session) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      const openMenu = [operationsMenu.current, operatorMenu.current].find(menu => menu?.open);
+      if (openMenu) {
+        event.preventDefault();
+        openMenu.open = false;
+        openMenu.querySelector('summary')?.focus();
+      } else if (mobileNav) {
+        event.preventDefault();
+        setMobileNav(false);
+        mobileMenuButton.current?.focus();
+      }
+    };
+    const closeOutside = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return;
+      for (const menu of [operationsMenu.current, operatorMenu.current]) {
+        if (menu?.open && !menu.contains(event.target)) menu.open = false;
+      }
+    };
+    const mobileViewport = window.matchMedia('(max-width: 860px)');
+    const closeResponsiveNavigation = () => {
+      setMobileNav(false);
+      if (operationsMenu.current) operationsMenu.current.open = false;
+    };
+    document.addEventListener('keydown', closeOnEscape, true);
+    document.addEventListener('pointerdown', closeOutside);
+    mobileViewport.addEventListener('change', closeResponsiveNavigation);
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape, true);
+      document.removeEventListener('pointerdown', closeOutside);
+      mobileViewport.removeEventListener('change', closeResponsiveNavigation);
+    };
+  }, [mobileNav, !!session]);
 
   const api = useCallback(async <T,>(path: string, options?: { method?: string; body?: unknown; overrideToken?: string; signal?: AbortSignal }): Promise<T> => {
     const headers: Record<string, string> = { Accept: 'application/json' };
@@ -199,6 +239,11 @@ export default function Console() {
   }
   function changeView(next: View) {
     if (!session?.permissions?.includes(viewMeta[next].permission)) return;
+    if (operationsMenu.current?.open) {
+      operationsMenu.current.open = false;
+      operationsMenu.current.querySelector('summary')?.focus();
+    }
+    if (mobileNav) mobileMenuButton.current?.focus();
     setView(next); setOffset(0); setMobileNav(false); setData(null); setError(''); setUpdated('');
   }
   function applyFilters(event: React.FormEvent<HTMLFormElement>) {
@@ -248,17 +293,33 @@ export default function Console() {
   </div>;
 
   const visibleNav = navigation.filter(item => session.permissions?.includes(viewMeta[item.view].permission));
+  const primaryNav = visibleNav.filter(item => item.group === '관측 · 분석');
+  const operationsNav = visibleNav.filter(item => item.group === '운영 관리');
+  const operatorName = session.user?.subject || session.subject || '운영자';
   const activeData = !loading ? data : null;
-  return <div className="app-shell">
-    <aside className={`sidebar ${mobileNav ? 'open' : ''}`}>
-      <Brand dark /><div className="sidebar-divider" />
-      <div className="tenant-card"><span className="mini-label">현재 조직</span><strong>{session.tenantId || '현재 조직'}</strong><small>{session.user?.subject || session.subject || '운영자'}</small><div className="role-row">{(session.roles || []).map(role => <span key={role}>{role}</span>)}</div></div>
-      <nav aria-label="주 메뉴">{['관측 · 분석', '운영 관리'].map(group => visibleNav.some(item => item.group === group) && <div className="nav-group" key={group}><span className="mini-label nav-caption">{group}</span>{visibleNav.filter(item => item.group === group).map(({ view: item, icon: Icon }) => <button key={item} className={`nav-item ${view === item ? 'active' : ''}`} aria-current={view === item ? 'page' : undefined} onClick={() => changeView(item)}><Icon size={18} strokeWidth={1.8} /><span>{viewMeta[item].title}</span><ArrowRight size={14} className="nav-arrow" /></button>)}</div>)}</nav>
-      <div className="sidebar-bottom"><span className="session-indicator"><span className="online-dot" />운영자 세션 연결됨</span><p>관측된 기록을 기준으로 합니다.<br />공급자 청구서와 다를 수 있습니다.</p><button className="logout-button" onClick={logout}><LogOut size={17} /> 로그아웃</button></div>
-    </aside>
-    {mobileNav && <button className="mobile-scrim" aria-label="메뉴 닫기" onClick={() => setMobileNav(false)} />}
-    <main className="main"><div className="topbar"><button className="mobile-menu" onClick={() => setMobileNav(true)} aria-label="메뉴 열기"><Menu size={21} /></button><span className="breadcrumb">WORKSPACE <span>/</span> {viewMeta[view].title}</span><div className="topbar-right"><span className="environment"><span className="online-dot" />{mode === 'enterprise' ? 'ENTERPRISE' : 'LOCAL'}</span><span className="avatar">{session.user?.subject?.slice(0, 1).toUpperCase() || 'O'}</span></div></div>
-      <div className="content"><header className="page-heading"><div><span className="eyebrow">GATEWAY ANALYTICS</span><h1>{viewMeta[view].title}</h1><p>{viewMeta[view].description}</p></div><button className="button outline" disabled={loading} onClick={() => setRevision(n => n + 1)}><RefreshCw size={16} className={loading ? 'spin' : ''} /> 새로고침</button></header>
+  return <div className="app-shell app-shell-workbench">
+    <header className="workbench-chrome">
+      <Brand dark />
+      <nav className="workbench-primary-nav" aria-label="주 메뉴">
+        {primaryNav.map(({ view: item }) => <button type="button" key={item} className={`nav-item ${view === item ? 'active' : ''}`} aria-current={view === item ? 'page' : undefined} onClick={() => changeView(item)}>{viewMeta[item].title}</button>)}
+        {operationsNav.length > 0 && <details className="workbench-menu workbench-operations" ref={operationsMenu} onToggle={event => { if (event.currentTarget.open && operatorMenu.current) operatorMenu.current.open = false; }}>
+          <summary className={operationsNav.some(item => item.view === view) ? 'active' : ''}>운영 관리 <ChevronDown size={14} aria-hidden="true" /></summary>
+          <div className="workbench-menu-panel"><nav aria-label="운영 관리">{operationsNav.map(({ view: item, icon: Icon }) => <button type="button" key={item} className={`nav-item ${view === item ? 'active' : ''}`} aria-current={view === item ? 'page' : undefined} onClick={() => changeView(item)}><Icon size={16} aria-hidden="true" />{viewMeta[item].title}</button>)}</nav></div>
+        </details>}
+      </nav>
+      <div className="workbench-account">
+        <span className="workbench-environment"><span className="online-dot" />{mode === 'enterprise' ? 'ENTERPRISE' : 'LOCAL'}</span>
+        <details className="workbench-menu workbench-operator" ref={operatorMenu} onToggle={event => { if (event.currentTarget.open) { if (operationsMenu.current) operationsMenu.current.open = false; setMobileNav(false); } }}>
+          <summary aria-label="운영자 정보"><span className="avatar" aria-hidden="true">{operatorName.slice(0, 1).toUpperCase()}</span><span className="workbench-operator-name">{operatorName}</span><ChevronDown size={13} aria-hidden="true" /></summary>
+          <div className="workbench-menu-panel workbench-operator-panel"><div className="workbench-identity"><span className="mini-label">{mode === 'enterprise' ? 'ENTERPRISE' : 'LOCAL'} · 현재 조직</span><strong>{session.tenantId || '현재 조직'}</strong><span>{operatorName}</span><div className="role-row">{(session.roles || []).map(role => <span key={role}>{role}</span>)}</div></div><span className="session-indicator"><span className="online-dot" />운영자 세션 연결됨</span><button className="logout-button" type="button" onClick={logout}><LogOut size={16} aria-hidden="true" />로그아웃</button></div>
+        </details>
+        <button className="workbench-mobile-toggle" type="button" ref={mobileMenuButton} aria-label={mobileNav ? '메뉴 닫기' : '메뉴 열기'} aria-expanded={mobileNav} aria-controls="workbench-mobile-nav" onClick={() => { if (operatorMenu.current) operatorMenu.current.open = false; if (operationsMenu.current) operationsMenu.current.open = false; setMobileNav(open => !open); }}>{mobileNav ? <X size={20} /> : <Menu size={20} />}</button>
+      </div>
+      <nav className="workbench-mobile-nav" id="workbench-mobile-nav" aria-label="모바일 주 메뉴" hidden={!mobileNav}>{['관측 · 분석', '운영 관리'].map(group => visibleNav.some(item => item.group === group) && <div className="nav-group" key={group}><span className="mini-label nav-caption">{group}</span>{visibleNav.filter(item => item.group === group).map(({ view: item, icon: Icon }) => <button type="button" key={item} className={`nav-item ${view === item ? 'active' : ''}`} aria-current={view === item ? 'page' : undefined} onClick={() => changeView(item)}><Icon size={17} aria-hidden="true" /><span>{viewMeta[item].title}</span></button>)}</div>)}</nav>
+    </header>
+    {mobileNav && <button className="workbench-mobile-scrim" type="button" aria-label="메뉴 닫기" onClick={() => { setMobileNav(false); mobileMenuButton.current?.focus(); }} />}
+    <main className="main">
+      <div className={`content workbench-content ${view === 'monitoring' ? 'is-monitoring' : ''}`}><header className={`page-heading ${view === 'monitoring' ? 'workbench-monitoring-heading' : ''}`}><div>{view !== 'monitoring' && <span className="eyebrow">GATEWAY ANALYTICS</span>}<h1>{view === 'monitoring' ? '대화 기록' : viewMeta[view].title}</h1><p>{view === 'monitoring' ? '세션을 선택하고 질문과 답변을 함께 살펴보세요.' : viewMeta[view].description}</p></div><button className="button outline" aria-label="새로고침" disabled={loading} onClick={() => setRevision(n => n + 1)}><RefreshCw size={16} className={loading ? 'spin' : ''} aria-hidden="true" /> 새로고침</button></header>
         {(view === 'overview' || view === 'requests') && <form className="filters" onSubmit={applyFilters}><div className="filter-main"><label>데이터 소스<select value={draft.source} onChange={e => setDraft({ ...draft, source: e.target.value })}><option value="gateway">Gateway · API 요청</option><option value="claude_code">Claude Code · 구독 모니터링</option><option value="all">전체 · 소스 함께 보기</option></select></label><label>시작일<input type="date" required value={draft.from} onChange={e => setDraft({ ...draft, from: e.target.value })} /></label><label>종료일<input type="date" required value={draft.to} onChange={e => setDraft({ ...draft, to: e.target.value })} /></label><label>트래픽<select value={draft.traffic} onChange={e => setDraft({ ...draft, traffic: e.target.value })}><option value="live">Live · 실제</option><option value="test">Test · 테스트</option><option value="demo">Demo · 데모</option><option value="all">전체</option></select></label><button className="button primary filter-apply" type="submit"><Search size={15} /> 조회</button></div><details className="advanced-filters"><summary><ChevronDown size={15} /> 상세 필터 <span>키 · 모델 · 세션 · 결과</span></summary><div className="filter-advanced"><label>시간대<input value={draft.zone} onChange={e => setDraft({ ...draft, zone: e.target.value })} placeholder="Asia/Seoul" /></label><label>키 ID<input value={draft.keyId} onChange={e => setDraft({ ...draft, keyId: e.target.value })} placeholder="정확히 일치" /></label><label>모델<input value={draft.model} onChange={e => setDraft({ ...draft, model: e.target.value })} placeholder="모델 ID" /></label><label>세션 ID<input value={draft.sessionId} onChange={e => setDraft({ ...draft, sessionId: e.target.value })} placeholder="정확히 일치" /></label><label>청구 모드<select value={draft.billingMode} onChange={e => setDraft({ ...draft, billingMode: e.target.value })}><option value="">전체</option><option value="api_key">API 키</option><option value="subscription_declared">구독 · 자기 신고</option><option value="api_key_declared">API 키 · 자기 신고</option><option value="unknown">미확인</option></select></label><label>공급자<select value={draft.provider} onChange={e => setDraft({ ...draft, provider: e.target.value })}><option value="">전체</option><option value="anthropic">Anthropic</option><option value="openai">OpenAI</option><option value="custom">Custom</option></select></label><label>결과<select value={draft.outcome} onChange={e => setDraft({ ...draft, outcome: e.target.value })}><option value="">전체</option><option value="success">성공</option><option value="http_error">HTTP 오류</option><option value="upstream_error">업스트림 오류</option><option value="cancelled">취소</option></select></label><button type="button" className="text-button" onClick={resetFilters}>초기화</button></div></details></form>}
         {notice && <div className="inline-note" role="status">{notice}</div>}{error && <div className="inline-note error" role="alert">{error}</div>}
         {loading && <div className="loading-panel"><RefreshCw size={18} className="spin" /> 기록을 불러오는 중입니다</div>}
