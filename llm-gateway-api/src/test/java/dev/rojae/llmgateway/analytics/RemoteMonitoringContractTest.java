@@ -160,15 +160,15 @@ class RemoteMonitoringContractTest {
             sql.execute("CREATE TRIGGER "+hook+" BEFORE INSERT OR UPDATE ON llm_gateway_analytics.monitoring_status FOR EACH ROW EXECUTE FUNCTION llm_gateway_analytics."+hook+"()");
         }
         try{
-            ingest(key.token(),prompt,usage).expectStatus().isEqualTo(503);
-            for(String table:List.of("monitoring_sessions","monitoring_questions","monitoring_question_contents","monitoring_events","monitoring_event_identities"))assertThat(count(table,tenant)).as(table).isZero();
+            ingest(key.token(),prompt,usage,claudeResponse("atomic-response","PRIVATE_ATOMIC_RESPONSE")).expectStatus().isEqualTo(503);
+            for(String table:List.of("monitoring_sessions","monitoring_questions","monitoring_question_contents","monitoring_events","monitoring_event_identities","monitoring_responses","monitoring_response_contents"))assertThat(count(table,tenant)).as(table).isZero();
         }finally{
             try(var connection=database.open();var sql=connection.createStatement()){
                 sql.execute("DROP TRIGGER "+hook+" ON llm_gateway_analytics.monitoring_status");sql.execute("DROP FUNCTION llm_gateway_analytics."+hook+"()");
             }
         }
-        ingest(key.token(),prompt,usage).expectStatus().isOk();
-        assertThat(count("monitoring_events",tenant)).isEqualTo(2);assertThat(count("monitoring_question_contents",tenant)).isEqualTo(1);
+        ingest(key.token(),prompt,usage,claudeResponse("atomic-response","PRIVATE_ATOMIC_RESPONSE")).expectStatus().isOk();
+        assertThat(count("monitoring_events",tenant)).isEqualTo(3);assertThat(count("monitoring_question_contents",tenant)).isEqualTo(1);
     }
 
     @Test void expiredSessionPayloadCannotBeRestoredByReplayOrNewLateEvent()throws Exception {
@@ -252,6 +252,128 @@ class RemoteMonitoringContractTest {
         JsonNode status=get("/status",tenant,"viewer");assertThat(status.path("stored").asLong()).isZero();assertThat(status.path("lastReceivedAt").isNull()).isTrue();
         assertThat(count("monitoring_events",tenant)).isZero();
     }
+
+    @Test void responsesArriveBeforeQuestionsStayProtectedAndDeduplicate()throws Exception{
+        UUID owner=account(tenant,"Response owner");var key=key(tenant,owner,null);
+        var response=claudeResponse("message-1","FIRST_PRIVATE_ANSWER");
+        ingest(key.token(),response,response,claudePrompt(),claudeUsage()).expectStatus().isOk();
+        String sid=first(get("/sessions?accountId="+owner,tenant,"viewer")).path("id").asText();
+        String qid=first(get("/sessions/"+sid+"/questions",tenant,"viewer")).path("id").asText();
+        JsonNode detail=get("/questions/"+qid,tenant,"operator");
+        assertThat(detail.path("responseAvailability").asText()).isEqualTo("available");
+        assertThat(detail.path("responses")).hasSize(1);assertThat(detail.path("responses").get(0).path("content").path("text").asText()).isEqualTo("FIRST_PRIVATE_ANSWER");
+        JsonNode viewer=get("/questions/"+qid,tenant,"viewer");assertThat(viewer.path("responseAvailability").asText()).isEqualTo("permission_required");assertThat(viewer.toString()).doesNotContain("FIRST_PRIVATE_ANSWER");
+        assertThat(first(get("/sessions/"+sid+"/responses",tenant,"operator")).path("questionId").asText()).isEqualTo(qid);
+        assertThat(detail.path("question").path("totalTokens").asLong()).isEqualTo(557);
+        for(String path:List.of("/accounts","/sessions?accountId="+owner,"/sessions/"+sid+"/questions","/sessions/"+sid+"/events"))assertThat(get(path,tenant,"operator").toString()).doesNotContain("FIRST_PRIVATE_ANSWER");
+    }
+    @Test void notifyModeSuppressesNativeQuestionAndValidatesHeader()throws Exception{
+        UUID owner=account(tenant,"Notify owner");var key=key(tenant,owner,null);
+        var nativePrompt=codex("user_prompt","1");attr(nativePrompt,"prompt","native question");
+        var turn=codex("turn_response","2");attr(turn,"turn.id","turn-1");attr(turn,"prompt","first\n\nsecond");attr(turn,"response","notify answer");
+        byte[] bytes=TelemetryNormalizerTest.envelope(nativePrompt,turn);
+        client.post().uri("/telemetry/v1/logs").header("Authorization","Bearer "+key.token()).header("Content-Type","application/json").header("X-LLM-Gateway-Codex-Question-Source","notify").bodyValue(bytes).exchange().expectStatus().isOk();
+        assertThat(count("monitoring_questions",tenant)).isEqualTo(1);assertThat(count("monitoring_responses",tenant)).isEqualTo(1);
+        String sid=first(get("/sessions?accountId="+owner,tenant,"viewer")).path("id").asText();String qid=first(get("/sessions/"+sid+"/questions",tenant,"viewer")).path("id").asText();
+        assertThat(get("/questions/"+qid,tenant,"operator").path("content").path("text").asText()).isEqualTo("first\n\nsecond");
+        for(String value:List.of("invalid","notify,native"))client.post().uri("/telemetry/v1/logs").header("Authorization","Bearer "+key.token()).header("Content-Type","application/json").header("X-LLM-Gateway-Codex-Question-Source",value).bodyValue(bytes).exchange().expectStatus().isBadRequest();
+    }
+    @Test void responseContentRetentionAndMetadataRetentionCannotBeReplayed()throws Exception{
+        UUID owner=account(tenant,"Response retention");var key=key(tenant,owner,null);var response=claudeResponse("retained-message","PRIVATE_RETAINED_ANSWER");ingest(key.token(),claudePrompt(),response).expectStatus().isOk();
+        String sid=first(get("/sessions?accountId="+owner,tenant,"viewer")).path("id").asText();String qid=first(get("/sessions/"+sid+"/questions",tenant,"viewer")).path("id").asText();
+        try(var c=database.open();var q=c.prepareStatement("UPDATE llm_gateway_analytics.monitoring_response_contents SET received_at=now()-interval '3 days' WHERE tenant_id=?")){q.setString(1,tenant);q.executeUpdate();MonitoringStore.prune(c,tenant,0,1);}
+        ingest(key.token(),response).expectStatus().isOk();
+        assertThat(count("monitoring_response_contents",tenant)).isZero();assertThat(get("/questions/"+qid,tenant,"operator").path("responseAvailability").asText()).isEqualTo("purged");
+        try(var c=database.open();var q=c.prepareStatement("UPDATE llm_gateway_analytics.monitoring_responses SET received_at=now()-interval '3 days' WHERE tenant_id=?")){q.setString(1,tenant);q.executeUpdate();MonitoringStore.prune(c,tenant,1,0);}
+        ingest(key.token(),response).expectStatus().isOk();assertThat(get("/sessions/"+sid+"/responses",tenant,"operator").path("items")).isEmpty();assertThat(count("monitoring_response_contents",tenant)).isZero();
+    }
+    @Test void responseIdentifiersAreOwnerTenantAndSessionScopedAndOrphansRemainVisible()throws Exception{
+        UUID a=account(tenant,"A"),b=account(tenant,"B"),foreign=account(otherTenant,"C");
+        var response=claudeResponse("same-id","same answer");
+        for(var key:List.of(key(tenant,a,null),key(tenant,b,null),key(otherTenant,foreign,null)))ingest(key.token(),response).expectStatus().isOk();
+        var otherSession=response.deepCopy();replace(otherSession,"session.id","another-session");ingest(key(tenant,a,null).token(),otherSession).expectStatus().isOk();
+        assertThat(count("monitoring_responses",tenant)).isEqualTo(3);assertThat(count("monitoring_responses",otherTenant)).isEqualTo(1);
+        var orphan=record("claude_code.assistant_response");attr(orphan,"session.id","orphan-session");attr(orphan,"message.uuid","orphan");attr(orphan,"response","unlinked answer");
+        UUID orphanOwner=account(tenant,"orphan");ingest(key(tenant,orphanOwner,null).token(),orphan).expectStatus().isOk();
+        String sid=first(get("/sessions?accountId="+orphanOwner,tenant,"viewer")).path("id").asText();JsonNode item=first(get("/sessions/"+sid+"/responses",tenant,"operator"));assertThat(item.path("questionId").isNull()).isTrue();assertThat(item.path("attribution").asText()).isEqualTo("unattributed");
+        client.get().uri("/admin/api/monitoring/sessions/"+sid+"/responses").header("Test-Tenant",otherTenant).exchange().expectStatus().isNotFound();
+    }
+    @Test void responsePagesUseSequenceAndExposeSafeRevisions()throws Exception{
+        UUID owner=account(tenant,"Ordered responses");var key=key(tenant,owner,null);ingest(key.token(),claudePrompt()).expectStatus().isOk();
+        JsonNode session=first(get("/sessions?accountId="+owner,tenant,"viewer"));String sid=session.path("id").asText();JsonNode question=first(get("/sessions/"+sid+"/questions",tenant,"viewer"));String qid=question.path("id").asText();
+        String before=question.path("responseRevision").asText();assertThat(before).isNotBlank();
+        var second=claudeResponse("second","SECOND_ANSWER");replace(second,"event.timestamp","2026-10-08T10:00:00Z");var first=claudeResponse("first","FIRST_ANSWER");replace(first,"event.timestamp","2026-10-08T10:00:00Z");first.withArray("attributes").forEach(a->{if(a.path("key").asText().equals("event.sequence"))((ObjectNode)a.path("value")).put("intValue","2");});
+        ingest(key.token(),second,first).expectStatus().isOk();JsonNode page=get("/sessions/"+sid+"/responses?limit=1&offset=0",tenant,"operator");assertThat(page.path("total").asInt()).isEqualTo(2);assertThat(first(page).path("content").path("text").asText()).isEqualTo("FIRST_ANSWER");
+        assertThat(first(get("/sessions/"+sid+"/responses?limit=1&offset=1",tenant,"operator")).path("content").path("text").asText()).isEqualTo("SECOND_ANSWER");
+        assertThat(get("/questions/"+qid,tenant,"operator").path("question").path("responseRevision").asText()).isNotEqualTo(before);
+        assertThat(first(get("/sessions?accountId="+owner,tenant,"viewer")).path("responseRevision").asText()).isNotEqualTo(session.path("responseRevision").asText());
+        JsonNode redacted=get("/sessions/"+sid+"/responses",tenant,"viewer");assertThat(redacted.toString()).doesNotContain("FIRST_ANSWER","SECOND_ANSWER");assertThat(redacted.path("items").get(0).path("contentAvailability").asText()).isEqualTo("permission_required");
+        client.get().uri("/admin/api/monitoring/sessions/"+sid+"/responses?limit=101").header("Test-Tenant",tenant).exchange().expectStatus().isBadRequest();
+    }
+    @Test void selectedSessionMetadataIsExactScopedValidatedAndTracksPurges()throws Exception{
+        UUID owner=account(tenant,"Selected metadata"),otherOwner=account(tenant,"Other metadata");var key=key(tenant,owner,null);
+        ingest(key.token(),claudeResponse("selected","PRIVATE_SELECTED_ANSWER")).expectStatus().isOk();
+        String sid=first(get("/sessions?accountId="+owner,tenant,"viewer")).path("id").asText();
+        var other=claudeResponse("other","OTHER_PRIVATE_ANSWER");replace(other,"session.id","other-session");ingest(key.token(),other).expectStatus().isOk();
+        String path="/sessions?accountId="+owner+"&sessionId="+sid+"&source=claude_code&limit=1";
+        long auditBefore=count("audit_events",tenant);
+        JsonNode metadata=first(get(path,tenant,"operator"));assertThat(metadata.path("id").asText()).isEqualTo(sid);
+        assertThat(metadata.toString()).doesNotContain("PRIVATE_SELECTED_ANSWER","OTHER_PRIVATE_ANSWER");
+        assertThat(count("audit_events",tenant)).isEqualTo(auditBefore);
+        assertThat(get(path,otherTenant,"viewer").path("items")).isEmpty();
+        assertThat(get("/sessions?accountId="+otherOwner+"&sessionId="+sid,tenant,"viewer").path("items")).isEmpty();
+        assertThat(get("/sessions?sessionId="+sid+"&source=codex",tenant,"viewer").path("items")).isEmpty();
+        assertThat(get("/sessions?sessionId="+sid+"&from=2000-01-01&to=2000-01-02",tenant,"viewer").path("items")).isEmpty();
+        for(String invalid:List.of("invalid","","1-1-1-1-1",sid+"&sessionId="+sid))client.get().uri("/admin/api/monitoring/sessions?sessionId="+invalid).header("Test-Tenant",tenant).exchange().expectStatus().isBadRequest();
+        String before=metadata.path("responseRevision").asText();
+        try(var c=database.open();var q=c.prepareStatement("UPDATE llm_gateway_analytics.monitoring_response_contents SET received_at=now()-interval '3 days' WHERE tenant_id=?")){q.setString(1,tenant);q.executeUpdate();MonitoringStore.prune(c,tenant,0,1);}
+        String bodyPurged=first(get(path,tenant,"viewer")).path("responseRevision").asText();assertThat(bodyPurged).isNotEqualTo(before);
+        try(var c=database.open();var q=c.prepareStatement("UPDATE llm_gateway_analytics.monitoring_responses SET received_at=now()-interval '3 days' WHERE tenant_id=?")){q.setString(1,tenant);q.executeUpdate();MonitoringStore.prune(c,tenant,1,0);}
+        assertThat(first(get(path,tenant,"viewer")).path("responseRevision").asText()).isNotEqualTo(bodyPurged);
+        try(var c=database.open();var q=c.prepareStatement("UPDATE llm_gateway_analytics.monitoring_sessions SET purged_at=now() WHERE tenant_id=? AND id=?")){q.setString(1,tenant);q.setObject(2,UUID.fromString(sid));q.executeUpdate();}
+        assertThat(get(path,tenant,"viewer").path("items")).isEmpty();
+    }
+    @Test void failedResponseReadAuditReturnsNoBodyAndRollsBackAudit()throws Exception{
+        UUID owner=account(tenant,"Audit responses");var key=key(tenant,owner,null);ingest(key.token(),claudeResponse("audit-message","AUDIT_PRIVATE_ANSWER")).expectStatus().isOk();
+        String sid=first(get("/sessions?accountId="+owner,tenant,"viewer")).path("id").asText();String qid=first(get("/sessions/"+sid+"/questions",tenant,"viewer")).path("id").asText();long before=count("audit_events",tenant);
+        String hook="response_audit_"+UUID.randomUUID().toString().replace("-","");
+        try(var c=database.open();var sql=c.createStatement()){
+            sql.execute("CREATE FUNCTION llm_gateway_analytics."+hook+"() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.tenant_id='"+tenant+"' AND NEW.action='content.read' THEN RAISE EXCEPTION 'synthetic audit failure'; END IF; RETURN NEW; END $$");
+            sql.execute("CREATE TRIGGER "+hook+" BEFORE INSERT ON llm_gateway_analytics.audit_events FOR EACH ROW EXECUTE FUNCTION llm_gateway_analytics."+hook+"()");
+        }
+        try{
+            for(String path:List.of("/questions/"+qid,"/sessions/"+sid+"/responses")){
+                byte[] bytes=client.get().uri("/admin/api/monitoring"+path).header("Test-Tenant",tenant).header("Test-Role","operator").exchange().expectStatus().is5xxServerError().expectBody(byte[].class).returnResult().getResponseBody();
+                assertThat(bytes==null?"":new String(bytes,StandardCharsets.UTF_8)).doesNotContain("AUDIT_PRIVATE_ANSWER");
+            }
+            assertThat(count("audit_events",tenant)).isEqualTo(before);
+        }finally{try(var c=database.open();var sql=c.createStatement()){sql.execute("DROP TRIGGER "+hook+" ON llm_gateway_analytics.audit_events");sql.execute("DROP FUNCTION llm_gateway_analytics."+hook+"()");}}
+    }
+    @Test void responseContentsExpireWithSessionsAndLateMessagesCannotRestoreThem()throws Exception{
+        UUID owner=account(tenant,"Expired responses");var key=key(tenant,owner,null);var response=claudeResponse("expired","PRIVATE_EXPIRED_ANSWER");ingest(key.token(),response).expectStatus().isOk();
+        String sid=first(get("/sessions?accountId="+owner,tenant,"viewer")).path("id").asText();
+        try(var c=database.open();var q=c.prepareStatement("UPDATE llm_gateway_analytics.monitoring_sessions SET last_seen_at=now()-interval '3 days' WHERE tenant_id=?")){q.setString(1,tenant);q.executeUpdate();MonitoringStore.prune(c,tenant,1,0);}
+        ingest(key.token(),response,claudeResponse("late-new-message","PRIVATE_LATE_ANSWER")).expectStatus().isOk();assertThat(count("monitoring_response_contents",tenant)).isZero();
+        client.get().uri("/admin/api/monitoring/sessions/"+sid+"/responses").header("Test-Tenant",tenant).exchange().expectStatus().isNotFound();
+    }
+    @Test void databaseRejectsCrossOwnerSessionAndQuestionResponseReferences()throws Exception{
+        UUID owner=account(tenant,"Scope A"),other=account(tenant,"Scope B");ingest(key(tenant,owner,null).token(),claudeResponse("scope","answer")).expectStatus().isOk();ingest(key(tenant,other,null).token(),claudeResponse("scope","answer")).expectStatus().isOk();
+        String otherSession=first(get("/sessions?accountId="+other,tenant,"viewer")).path("id").asText();String otherQuestion=first(get("/sessions/"+otherSession+"/questions",tenant,"viewer")).path("id").asText();
+        for(String sql:List.of("UPDATE llm_gateway_analytics.monitoring_responses SET session_id=? WHERE tenant_id=? AND account_id=?","UPDATE llm_gateway_analytics.monitoring_responses SET question_id=? WHERE tenant_id=? AND account_id=?")){
+            try(var c=database.open();var query=c.prepareStatement(sql)){
+                query.setObject(1,UUID.fromString(sql.contains("SET session_id")?otherSession:otherQuestion));query.setString(2,tenant);query.setObject(3,owner);
+                assertThatThrownBy(query::executeUpdate).isInstanceOf(java.sql.SQLException.class).satisfies(e->assertThat(((java.sql.SQLException)e).getSQLState()).isEqualTo("23503"));
+            }
+        }
+    }
+    @Test void absentEmptyAndRedactedAnswersRemainNotCollected()throws Exception{
+        UUID owner=account(tenant,"Unavailable answers");var key=key(tenant,owner,null);ingest(key.token(),claudePrompt()).expectStatus().isOk();
+        String sid=first(get("/sessions?accountId="+owner,tenant,"viewer")).path("id").asText();String qid=first(get("/sessions/"+sid+"/questions",tenant,"viewer")).path("id").asText();
+        assertThat(get("/questions/"+qid,tenant,"operator").path("responseAvailability").asText()).isEqualTo("not_collected");
+        ingest(key.token(),claudeResponse("empty",""),claudeResponse("redacted","<REDACTED>")).expectStatus().isOk();JsonNode detail=get("/questions/"+qid,tenant,"operator");assertThat(detail.path("responseAvailability").asText()).isEqualTo("not_collected");
+        assertThat(detail.path("responses")).hasSize(2);for(JsonNode response:detail.path("responses")){assertThat(response.path("content").isNull()).isTrue();assertThat(response.path("contentAvailability").asText()).isEqualTo("not_collected");}
+    }
+    static ObjectNode claudeResponse(String message,String text){var event=record("claude_code.assistant_response");attr(event,"session.id","shared-session");attr(event,"prompt.id","shared-prompt");attr(event,"message.uuid",message);attr(event,"response",text);attr(event,"query_source","repl_main_thread");number(event,"event.sequence",3);return event;}
 
     UUID account(String t,String name)throws Exception {
         byte[] bytes=client.post().uri("/admin/api/monitoring/accounts").header("Test-Tenant",t).bodyValue(Map.of("name",name)).exchange().expectStatus().isCreated().expectBody(byte[].class).returnResult().getResponseBody();

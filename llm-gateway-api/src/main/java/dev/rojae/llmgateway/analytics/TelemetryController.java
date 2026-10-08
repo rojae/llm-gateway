@@ -36,6 +36,9 @@ public final class TelemetryController {
         CollectorCredentialService.Identity identity=exchange.getAttribute(TelemetryAuthFilter.IDENTITY_ATTRIBUTE);
         if(identity==null)return Mono.just(error(HttpStatus.UNAUTHORIZED,"unauthorized"));
         ServerHttpRequest request=exchange.getRequest();
+        var questionSourceHeaders=request.getHeaders().get("X-LLM-Gateway-Codex-Question-Source");
+        String questionSource=questionSourceHeaders==null?"native":questionSourceHeaders.size()==1?questionSourceHeaders.getFirst():"";
+        if(!java.util.Set.of("native","notify").contains(questionSource))return Mono.just(error(HttpStatus.BAD_REQUEST,"invalid_question_source"));
         String encoding=request.getHeaders().getFirst("Content-Encoding");
         if(encoding!=null&&!encoding.equalsIgnoreCase("identity"))return Mono.just(error(HttpStatus.UNSUPPORTED_MEDIA_TYPE,"unsupported_encoding"));
         MediaType contentType;
@@ -45,15 +48,15 @@ public final class TelemetryController {
         return DataBufferUtils.join(request.getBody(),properties.getMaxBodyBytes())
                 .map(buffer->{try{byte[] bytes=new byte[buffer.readableByteCount()];buffer.read(bytes);return bytes;}finally{DataBufferUtils.release(buffer);}})
                 .defaultIfEmpty(new byte[0])
-                .flatMap(bytes->Mono.fromCallable(()->persist(bytes,identity)).subscribeOn(worker))
+                .flatMap(bytes->Mono.fromCallable(()->persist(bytes,identity,questionSource)).subscribeOn(worker))
                 .onErrorResume(DataBufferLimitException.class,error->Mono.just(error(HttpStatus.PAYLOAD_TOO_LARGE,"payload_too_large")))
                 .onErrorResume(RejectedExecutionException.class,error->Mono.just(error(HttpStatus.SERVICE_UNAVAILABLE,"telemetry_busy")))
                 .onErrorResume(error->Mono.just(error(HttpStatus.SERVICE_UNAVAILABLE,"telemetry_unavailable")));
     }
-    private ResponseEntity<Map<String,Object>> persist(byte[] payload,CollectorCredentialService.Identity identity){
+    private ResponseEntity<Map<String,Object>> persist(byte[] payload,CollectorCredentialService.Identity identity,String questionSource){
         TelemetryNormalizer.Batch batch;
         MonitoringNormalizer.Batch remote;
-        try{remote=monitoring.normalize(payload);batch=identity.ownerAccountId()==null?normalizer.normalize(payload,identity.billingMode()):new TelemetryNormalizer.Batch(java.util.List.of(),0);}
+        try{remote=monitoring.normalize(payload,questionSource);batch=identity.ownerAccountId()==null?normalizer.normalize(payload,identity.billingMode()):new TelemetryNormalizer.Batch(java.util.List.of(),0);}
         catch(IllegalArgumentException invalid){
             boolean tooLarge="payload_too_large".equals(invalid.getMessage())||"too_many_records".equals(invalid.getMessage());
             return error(tooLarge?HttpStatus.PAYLOAD_TOO_LARGE:HttpStatus.BAD_REQUEST,tooLarge?"payload_too_large":"invalid_telemetry");
