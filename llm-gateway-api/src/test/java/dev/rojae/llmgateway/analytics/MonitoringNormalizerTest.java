@@ -69,6 +69,46 @@ class MonitoringNormalizerTest {
         values.addObject().put("key","prompt_text").putObject("value").put("stringValue","x".repeat(20000));values.addObject().put("key","header").putObject("value").put("stringValue","PRIVATE_SECRET");
         var event=parser.normalize(TelemetryNormalizerTest.envelope(prompt)).events().getFirst();assertThat(event.content()).hasSize(16384);assertThat(event.truncated()).isTrue();assertThat(event.toString()).doesNotContain("PRIVATE_SECRET");
     }
+    @Test void nativeAssistantAndNotifyTurnAreSupportedWithoutClaimingUsage()throws Exception{
+        var response=record("claude_code.assistant_response");attr(response,"prompt.id","p");attr(response,"message.uuid","m");attr(response,"response","answer");attr(response,"query_source","sdk");
+        var nativeEvent=parser.normalize(TelemetryNormalizerTest.envelope(response)).events().getFirst();
+        assertThat(nativeEvent.supported()).isTrue();assertThat(nativeEvent.attribution()).isEqualTo("linked");assertThat(nativeEvent.cost()).isNull();
+        var notify=record("codex.turn_response");attr(notify,"conversation.id","c");attr(notify,"turn.id","t");attr(notify,"prompt","question");attr(notify,"response","answer");
+        var custom=parser.normalize(TelemetryNormalizerTest.envelope(notify)).events().getFirst();
+        assertThat(custom.question()).isTrue();assertThat(custom.promptId()).isEqualTo("t");assertThat(custom.content()).isEqualTo("question");assertThat(custom.model()).isNull();
+    }
+    @Test void malformedNotifyFieldsAreRejected()throws Exception{
+        for(String missing:java.util.List.of("conversation.id","turn.id","prompt","response")){
+            var notify=record("codex.turn_response");
+            for(String key:java.util.List.of("conversation.id","turn.id","prompt","response"))if(!key.equals(missing))attr(notify,key,"value");
+            assertThat(parser.normalize(TelemetryNormalizerTest.envelope(notify)).rejected()).as(missing).isEqualTo(1);
+        }
+    }
+    @Test void responseUnicodeBoundariesEmptyTextAndCliTruncationAreExplicit()throws Exception{
+        var response=record("claude_code.assistant_response");attr(response,"response","x".repeat(65535)+"😀tail");
+        var event=parser.normalize(TelemetryNormalizerTest.envelope(response)).events().getFirst();assertThat(event.responseContent()).hasSize(65535);assertThat(event.responseTruncated()).isTrue();
+        var empty=record("claude_code.assistant_response");attr(empty,"response","");assertThat(parser.normalize(TelemetryNormalizerTest.envelope(empty)).events().getFirst().responseContent()).isNull();
+        var marker=record("claude_code.assistant_response");attr(marker,"response","short text [... truncated ...]");assertThat(parser.normalize(TelemetryNormalizerTest.envelope(marker)).events().getFirst().responseTruncated()).isTrue();
+        var upstream=record("claude_code.assistant_response");attr(upstream,"response","short text");attr(upstream,"response_length","100000");assertThat(parser.normalize(TelemetryNormalizerTest.envelope(upstream)).events().getFirst().responseTruncated()).isTrue();
+    }
+    @Test void nativeRedactionAndOriginalLengthReflectCollectionState()throws Exception{
+        for(String text:java.util.List.of("<REDACTED>","[REDACTED]")){
+            var event=record("claude_code.assistant_response");attr(event,"response",text);attr(event,"response_length","100000");assertThat(parser.normalize(TelemetryNormalizerTest.envelope(event)).events().getFirst().responseContent()).isNull();
+        }
+        var marker=record("claude_code.assistant_response");attr(marker,"response","text\n\n[TRUNCATED - Content exceeds 60KB limit]");assertThat(parser.normalize(TelemetryNormalizerTest.envelope(marker)).events().getFirst().responseTruncated()).isTrue();
+        var smallLimit=record("claude_code.assistant_response");attr(smallLimit,"response","short");attr(smallLimit,"response_length","1000");assertThat(parser.normalize(TelemetryNormalizerTest.envelope(smallLimit)).events().getFirst().responseTruncated()).isTrue();
+    }
+    @Test void notifyNonStringTextAndInvalidIdsCannotBecomeQuestions()throws Exception{
+        for(String invalid:java.util.List.of("prompt","response","turn.id","conversation.id")){
+            var turn=record("codex.turn_response");for(String key:java.util.List.of("prompt","response","turn.id","conversation.id"))TelemetryNormalizerTest.attr(turn,key,key.equals(invalid)?"intValue":"stringValue","12");
+            assertThat(parser.normalize(TelemetryNormalizerTest.envelope(turn)).rejected()).as(invalid).isEqualTo(1);
+        }
+    }
+    @Test void codexTurnIdentityCannotBeChangedByClaudeMessageFields()throws Exception{
+        var turn=record("codex.turn_response");attr(turn,"conversation.id","c");attr(turn,"turn.id","t");attr(turn,"prompt","q");attr(turn,"response","a");var first=parser.normalize(TelemetryNormalizerTest.envelope(turn)).events().getFirst();
+        attr(turn,"message.uuid","unexpected");assertThat(parser.normalize(TelemetryNormalizerTest.envelope(turn)).events().getFirst().identity()).isEqualTo(first.identity());
+        var wrongType=record("claude_code.assistant_response");TelemetryNormalizerTest.attr(wrongType,"response","intValue","123");assertThat(parser.normalize(TelemetryNormalizerTest.envelope(wrongType)).rejected()).isEqualTo(1);
+    }
     private static ObjectNode record(String event){return TelemetryNormalizerTest.record(event);}
     private static void attr(ObjectNode log,String key,String value){TelemetryNormalizerTest.attr(log,key,"stringValue",value);}
 }

@@ -45,7 +45,11 @@ async (page) => {
     }
     if (path === 'status') return respond({ ready: true, stored: 2, rejected: 0, duplicates: 0, unsupported: 0, unattributed: 0, lastReceivedAt: stamp });
     if (path === 'accounts') return respond({ items: [account], total: 1 });
-    if (path === 'sessions') return respond({ items: sessions, total: sessions.length });
+    if (path === 'sessions') {
+      const selectedId = url.searchParams.get('sessionId');
+      const items = selectedId ? sessions.filter(item => item.id === selectedId) : sessions;
+      return respond({ items, total: items.length });
+    }
     const list = /^sessions\/([^/]+)\/questions$/.exec(path);
     if (list) {
       const index = sessionIds.indexOf(list[1]);
